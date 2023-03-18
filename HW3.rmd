@@ -1,0 +1,162 @@
+---
+title: "HW3"
+author: "ASG"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE,message=FALSE,echo = TRUE)
+```
+## 2.6
+### a
+```{r}
+library(RLRsim)
+
+```
+### b
+```{r}
+set.seed(1)
+x <- seq(0,1,length = 200)
+y <- x + rnorm(200)
+```
+
+### c
+```{r}
+library(mgcv) ; library(RLRsim)
+fitLine <- gam(y ~ x) ; fitDfltPenSpl <- gam(y ~ s(x))
+print(anova(fitLine,fitDfltPenSpl,test = "F")$"Pr(>F)"[2])
+fitOLSspl <- gam(y ~ s(x,k = 5,sp = 0))
+print(anova(fitLine,fitOLSspl,test = "F")$"Pr(>F)"[2])
+fitGAMM <- gamm(y ~ s(x),method = "REML")
+print(exactRLRT(fitGAMM$lme)[2])
+```
+If the p value is high, we accept the null hypothesis. In this case, 2 tests shows high p-value hence we do not reject the null hypothesis for data generated when seed=1. Since H0 is true , and for two tests we get high p-value , we can say that the OLS and RLRT test are veritable test and F game test is not. 
+
+### d
+```{r}
+sample<-1000
+Fgam<-c()
+Fols<-c()
+RLRT<-c()
+for (i in 1:sample){
+  set.seed(i)
+  x <- seq(0,1,length = 200)
+  y <- x + rnorm(200)
+  
+  fitLine <- gam(y ~ x) ; fitDfltPenSpl <- gam(y ~ s(x))
+  Fgam[i]<-anova(fitLine,fitDfltPenSpl,test = "F")$"Pr(>F)"[2]
+  
+  fitOLSspl <- gam(y ~ s(x,k = 5,sp = 0))
+  Fols[i]<-anova(fitLine,fitOLSspl,test = "F")$"Pr(>F)"[2]
+  
+  fitGAMM <- gamm(y ~ s(x),method = "REML")
+  RLRT[i]<-exactRLRT(fitGAMM$lme)[2]$p.value
+  
+}
+hist(Fgam)
+hist(Fols)
+hist(RLRT)
+```
+Gam F test: The distribution of pvalues of this particular test is a left skewed distribution. Hence we can conclude that this F test usually rejects the null hypothesis that f is linear. The bulk of the simulation yielded pvalues well below the standard significance level of 0.05
+
+OLS F test: The p values from this histogram is more normally distributed. Hence we can conclude that the pvalues are higher generally hence we should accept the null hypothesis.
+
+RLRT : The p values are usually 1 in this case. Which means that the observed test statistic is 0 for more than half the sample dataset. Thus we can say that the null hypothesis is usually accepted. This is because according to RLRT for most of the test the H0 And H1 were indistinguishable and for the rest , we still get high p values when significance level is set to 0.05.
+
+### e
+```{r}
+Fgamprobs<-length(which(Fgam<0.05))/length(Fgam)
+print(Fgamprobs)
+
+Folsprobs<-length(which(Fols<0.05))/length(Fols)
+print(Folsprobs)
+
+RLRTprobs<-length(which(RLRT<0.05))/length(RLRT)
+print(RLRTprobs)
+```
+The F OLS test and the RLRT test have the probability closer to the advertised significance level.
+
+## 2.7
+
+### a
+```{r}
+theta <- seq(0,1,by = 0.05)
+xg <- seq(0,1,length = 1001)
+plot(xg,xg,type="l",ylim = c(0,2.15),bty = "l",xlab = "x",ylab = expression(paste("f(x;",theta,")")))
+for (j in 2:length(theta)) lines(xg,xg + theta[j]*dnorm(xg,0.5,0.25),col = j)
+```
+
+### b
+```{r}
+get_power <- function(theta, sample=1000){
+  Fgam<-c()
+  Fols<-c()
+  RLRT<-c()
+  for (i in 1:sample){
+    set.seed(i)
+    x <- seq(0,1,length = 200)
+    y <- x + theta*dnorm(x,0.5,0.25) + rnorm(200)
+    
+    fitLine <- gam(y ~ x) ; fitDfltPenSpl <- gam(y ~ s(x))
+    Fgam[i]<-anova(fitLine,fitDfltPenSpl,test = "F")$"Pr(>F)"[2]
+    
+    fitOLSspl <- gam(y ~ s(x,k = 5,sp = 0))
+    Fols[i]<-anova(fitLine,fitOLSspl,test = "F")$"Pr(>F)"[2]
+    
+    fitGAMM <- gamm(y ~ s(x),method = "REML")
+    RLRT[i]<-exactRLRT(fitGAMM$lme)[2]$p.value
+    
+  }
+  Fgamprobs<-length(which(Fgam<0.05))/length(Fgam)
+  Folsprobs<-length(which(Fols<0.05))/length(Fols)
+  RLRTprobs<-length(which(RLRT<0.05))/length(RLRT)
+  return(c(Fgamprobs,Folsprobs, RLRTprobs))
+}
+
+theta <- seq(0,1,by = 0.05)
+power<-c()
+for (i in 2:length(theta)){
+  power<-rbind(power,get_power(theta[i],1000))
+}
+power<-data.frame(cbind(power,theta))
+
+plot(power$theta,power$V1,ylim = c(0,2.15),bty = "l")
+lines(power$theta,power$V1,col="red",lty=1,lwd=2)
+lines(power$theta,power$V2,col="blue",lty=2,lwd=2)
+lines(power$theta,power$V3,col="green",lty=3,lwd=2)
+legend('topright',legend=c("F gam test","F ols test","RLRT"),col=c("red","blue","green"),lty=1:2, cex=0.6)
+
+```
+### e
+
+As the theta increases, the ols and rlrt correctly rejects the null hypothesis and provides a higher rejection probability. while the F gam test doesnt seem to have similar trend and has higher rejection probability even when theta is near 0(linearity indicator). Thus F ols test and rlrt test are much better test in response and the rlrt proves to be a much powerful test as it provides higher rejection probability as theta increases.
+
+## 3
+### a
+The dataset used is a time series data in the default Dataset package of r called as ldeaths. It measures the lung related mortality rate in UK residents. The official description is as follows:
+"Three time series giving the monthly deaths from bronchitis, emphysema and asthma in the UK, 1974–1979, both sexes (ldeaths), males (mdeaths) and females (fdeaths)."
+the mentioned source is :
+  "P. J. Diggle (1990) Time Series: A Biostatistical Introduction. Oxford, table A.3"
+
+### b
+The regressor variable is Date. The data is collected monthly between 1974 to 1979
+The response variable is number of deaths from lung diseases in UK residents.
+
+### c
+```{r}
+library(datasets)
+ldeath<-data.frame(Y=as.matrix(ldeaths), date=zoo::as.Date(time(ldeaths)))
+x <- as.numeric(ldeath$date)
+y <- ldeath$Y
+plot(ldeath$date,y,bty = "l",col = "dodgerblue")
+fitGAMcr<-gam(y ~ s(x,bs = "cr",k=25))
+xg <- seq(min(x),max(x),length = 1000)
+fHatgGAMcr <- predict(fitGAMcr,newdata = data.frame(x = xg))
+lines(xg,fHatgGAMcr,col = "darkgreen",lwd=2)
+gam.check(fitGAMcr)
+```
+
+### d
+The model complexity is fairly high for this dataset. I started out without setting the K value and used gam.check to find optimal K. it gave result as 10. i tried using k from 12 to 25 to check which fits the plot better. K=25 the actual vs fitted plot was fairly linear, which means the model was performing good. Hence the GAM was very robustly able to model such a time series data which had periodic properties.
+
