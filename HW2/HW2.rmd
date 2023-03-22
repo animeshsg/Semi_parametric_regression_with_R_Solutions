@@ -8,6 +8,7 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+
 ```
 
 ## 2.3
@@ -107,7 +108,7 @@ library(HRW) ; library(mgcv) ; data(WarsawApts)
 x <- WarsawApts$construction.date
 y <- WarsawApts$areaPerMzloty
 plot(x,y,bty = "l",col = "dodgerblue")
-fitGAMcr <- gam(y ~ s(x,bs = "cr",k = 30))
+fitGAMcr <- gam(y ~ s(x,bs = "cr",k = 35))
 xg <- seq(min(x),max(x),length = 1001)
 fHatgGAMcr <- predict(fitGAMcr,newdata = data.frame(x = xg))
 lines(xg,fHatgGAMcr,col = "darkgreen",lwd=2)
