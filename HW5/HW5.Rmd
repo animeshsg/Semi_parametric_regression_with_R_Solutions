@@ -599,8 +599,6 @@ credUppCntrlOrigS <- sd.y*credUppCntrlS + mean.y
 ### b
 
 ```{r}
-
-
 par(mai = c(1.02,0.9,0.82,0.42))
 plot(xOrig,yOrig,type = "n",bty = "l",xlab = "construction date (year)",
      ylab = "area (square meters) per million zloty",

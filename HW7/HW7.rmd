@@ -1,0 +1,258 @@
+---
+title: "HW7"
+author: "ASG"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, cache=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## 1
+
+The very first thing one should look into when selecting the model terms , is the domain knowledge of the data , the hypothesis problem and the dataset itself. It is very important to first weed out the terms based on the domain knowledge of the data and the hypothesis one is working on. Rest steps can follow after this necessary first step.
+
+## 3.2
+
+### a
+```{r}
+set.seed(1) ; n <- 500 ; error <- rnorm(n,0,0.5)
+x1 <- runif(n) ; x2 <- runif(n) ; x3 <- runif(n)
+x4 <- runif(n) ; x5 <- runif(n) ; x6 <- runif(n)
+x7 <- runif(n) ; x8 <- runif(n) ; x9 <- runif(n)
+f4 <- function(x) return(x + dnorm(x,0.5,0.25))
+f5 <- function(x) return(x + 0.5*dnorm(x,0.5,0.25))
+f6 <- function(x) return(x + 0.1*dnorm(x,0.5,0.25))
+y <- x1 + x2 + x3 + f4(x4) + f5(x5) + f6(x6) + error
+```
+
+### b
+```{r}
+library(gam)
+gamObj <- gam(y ~ x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9)
+stepFit <- step.Gam(gamObj,scope =list("x1" = ~ 1 + x1 + s(x1,df = 2),"x2" = ~ 1 + x2 + s(x2,df = 2),"x3" = ~ 1 + x3 + s(x3,df = 2),"x4" = ~ 1 + x4 + s(x4,df = 2),"x5" = ~ 1 + x5 + s(x5,df = 2),"x6" = ~ 1 + x6 + s(x6,df = 2),"x7" = ~ 1 + x7 + s(x7,df = 2),"x8" = ~ 1 + x8 + s(x8,df = 2),"x9" = ~ 1 + x9 + s(x9,df = 2)))
+
+```
+
+### c
+```{r}
+print(names(stepFit$"model")[-1])
+
+correct_fxn<-function(fnames){
+  correct<-c(
+  "x1" %in% fnames,
+  "x2" %in% fnames,
+  "x3" %in% fnames,
+  "s(x4, df = 2)" %in% fnames,
+  "s(x5, df = 2)" %in% fnames,
+  "s(x6, df = 2)" %in% fnames,
+  !("s7" %in% fnames | "s(x7, df = 2)" %in% fnames),
+  !("s8" %in% fnames | "s(x8, df = 2)" %in% fnames),
+  !("s9" %in% fnames | "s(x9, df = 2)" %in% fnames)
+  )
+  as.numeric(correct)
+}
+ans<-correct_fxn(names(stepFit$"model")[-1])
+print(ans)
+```
+
+
+### d
+```{r}
+library(gam)
+prop<-rep(0,9)
+for (i in 1:100){
+  set.seed(i) ; n <- 500 ; error <- rnorm(n,0,0.5)
+  x1 <- runif(n) ; x2 <- runif(n) ; x3 <- runif(n)
+  x4 <- runif(n) ; x5 <- runif(n) ; x6 <- runif(n)
+  x7 <- runif(n) ; x8 <- runif(n) ; x9 <- runif(n)
+  f4 <- function(x) return(x + dnorm(x,0.5,0.25))
+  f5 <- function(x) return(x + 0.5*dnorm(x,0.5,0.25))
+  f6 <- function(x) return(x + 0.1*dnorm(x,0.5,0.25))
+  y <- x1 + x2 + x3 + f4(x4) + f5(x5) + f6(x6) + error
+  gamObj <- gam(y ~ x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9)
+  stepFit <- step.Gam(gamObj,trace=FALSE,scope =list("x1" = ~ 1 + x1 + s(x1,df = 2),"x2" = ~ 1 + x2 + s(x2,df = 2),"x3" = ~ 1 + x3 + s(x3,df = 2),"x4" = ~ 1 + x4 + s(x4,df = 2),"x5" = ~ 1 + x5 + s(x5,df = 2),"x6" = ~ 1 + x6 + s(x6,df = 2),"x7" = ~ 1 + x7 + s(x7,df = 2),"x8" = ~ 1 + x8 + s(x8,df = 2),"x9" = ~ 1 + x9 + s(x9,df = 2)))
+  vars<-correct_fxn(names(stepFit$"model")[-1])
+  prop=prop+vars
+}
+print(prop/100)
+detach(package:gam)
+```
+
+### e
+```{r}
+library(gam)
+prop2<-rep(0,9)
+for (i in 1:100){
+  set.seed(i) ; n <- 500 ; error <- rnorm(n,0,1)
+  x1 <- runif(n) ; x2 <- runif(n) ; x3 <- runif(n)
+  x4 <- runif(n) ; x5 <- runif(n) ; x6 <- runif(n)
+  x7 <- runif(n) ; x8 <- runif(n) ; x9 <- runif(n)
+  f4 <- function(x) return(x + dnorm(x,0.5,0.25))
+  f5 <- function(x) return(x + 0.5*dnorm(x,0.5,0.25))
+  f6 <- function(x) return(x + 0.1*dnorm(x,0.5,0.25))
+  y <- x1 + x2 + x3 + f4(x4) + f5(x5) + f6(x6) + error
+  gamObj <- gam(y ~ x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9)
+  stepFit <- step.Gam(gamObj,trace=FALSE,scope =list("x1" = ~ 1 + x1 + s(x1,df = 2),"x2" = ~ 1 + x2 + s(x2,df = 2),"x3" = ~ 1 + x3 + s(x3,df = 2),"x4" = ~ 1 + x4 + s(x4,df = 2),"x5" = ~ 1 + x5 + s(x5,df = 2),"x6" = ~ 1 + x6 + s(x6,df = 2),"x7" = ~ 1 + x7 + s(x7,df = 2),"x8" = ~ 1 + x8 + s(x8,df = 2),"x9" = ~ 1 + x9 + s(x9,df = 2)))
+  vars<-correct_fxn(names(stepFit$"model")[-1])
+  prop2=prop2+vars
+}
+print(prop2/100)
+detach(package:gam)
+```
+
+### f
+```{r}
+y2<-prop2/100
+y1<-prop/100
+x<-seq(1,9)
+plot(y2,col=2,xlab="Coefficient terms",ylab="Probability")
+points(y1,col=3,pch=3)
+legend("bottomright", legend=c("Simulation 1", "Simulation 2"),
+       col=c("red", "green"), pch=c(1,3), cex=0.8)
+```
+
+## 3.4
+
+### a
+```{r}
+library(aplore3) ; data(icu) ; help(icu)
+str(icu)
+```
+
+### b
+```{r}
+library(gam)
+fitInitial <- gam:::gam(sta ~age+gender+race+ser+can+crn+inf+cpr+sys+hra+pre+type+fra+po2+ph+pco+bic+cre+loc,family=binomial,data = icu)
+stepFit <- step.Gam(fitInitial, scope =
+                      list(
+                      "age" = ~ 1 + age + s(age,2), 
+                      "gender" = ~ 1 + gender,
+                      "race" = ~ 1 + race , 
+                      "ser" = ~ 1 + ser, 
+                      "can" = ~ 1 + can, 
+                      "crn" = ~ 1 + crn, 
+                      "inf" = ~ 1+ inf,
+                      "cpr" = ~ 1 + cpr,
+                      "sys" = ~ 1 + sys + s(sys,2),
+                      "hra" = ~ 1+ hra + s(hra,2),
+                      "pre" = ~ 1 + pre,
+                      "type" = ~ 1 + type ,
+                      "fra" = ~ 1 + fra,
+                      "po2" = ~ 1 + po2, 
+                      "ph" = ~ 1 + ph,
+                      "pco" = ~ 1 + pco,
+                      "bic" = ~ 1 + bic,
+                      "cre" = ~ 1 + cre ,
+                      "loc" = ~ 1 + loc
+                      ))
+print(names(stepFit$"model")[-1])
+detach(package:gam)
+```
+
+### c
+```{r}
+library(mgcv)
+fitgam<-mgcv:::gam(sta~s(age)+as.factor(gender)+as.factor(can)+as.factor(cpr)+sys+as.factor(pre)+as.factor(type)+as.factor(ph)+as.factor(pco)+as.factor(loc),family=binomial,data=icu)
+summary(fitgam)
+gam.check(fitgam)
+
+```
+
+### d
+```{r}
+newdatadf<-data.frame(
+  gender="Female",
+  age=79,
+  race="White",
+  ser="Medical",
+  can="No",
+  crn="No",
+  inf="No",
+  cpr="No",
+  sys=228,
+  hra=94,
+  pre="No",
+  type="Emergency",
+  fra="No",
+  po2="> 45",
+  ph=">= 7.25",
+  pco="> 45",
+  bic="< 18",
+  cre="> 2.0",
+  loc="Coma"
+)
+predObjdir <- predict(fitgam,newdata = newdatadf,
+                      type = "response",se.fit = TRUE)
+print(predObjdir)
+```
+## 3.7
+
+### a
+```{r}
+library(kernlab) ; data(spam) ; help(spam)
+print(names(spam))
+```
+
+### b
+```{r}
+set.seed(1) ; nTest <- 1000
+indsTest <- sample(1:nrow(spam),nTest,replace = FALSE)
+indsTrain <- setdiff(1:nrow(spam),indsTest)
+spamTest <- spam[indsTest,]
+spamTrain <- spam[indsTrain,]
+```
+
+### c
+```{r}
+fitTrainFullGLM <- glm(type ~ .,family = binomial,data = spamTrain)
+print(summary(fitTrainFullGLM))
+```
+
+### d
+```{r}
+library(gam)
+fitgam3<-gam:::gam(type ~ .,family = binomial,data = spamTrain)
+spam_scope<-gam.scope(spamTrain,arg="df=2",response=58)
+stepfit3<-step.Gam(fitgam3,scope=spam_scope)
+detach(package:gam)
+```
+
+### d
+```{r}
+func<-names(stepfit3$"model")[-1]
+print(func)
+library(mgcv)
+fitmgcvgam3<-mgcv:::gam(type~make+address+all+num3d+s(our)+over+s(remove)+internet+order+mail+receive+will+people+report+addresses+free+business+email+you+credit+your+font+num000+s(money)+s(hp)+s(george)+hpl+s(num650)+lab+labs+num857+data+num415+num85+technology+num1999+parts+pm+direct+cs+meeting+original+project+re+edu+table+conference+charSemicolon+charRoundbracket+charSquarebracket+s(charExclamation)+s(charDollar)+charHash+capitalAve+capitalLong+s(capitalTotal),family=binomial,data=spamTrain)
+summary(fitmgcvgam3)
+```
+
+### e
+```{r}
+library(caret)
+pdata <- predict(fitmgcvgam3, newdata = spamTest, type = "response")
+SpamTestpred = rep("nonspam", dim(spamTest)[1])
+SpamTestpred[pdata>0.5]="spam"
+p<-confusionMatrix(data = as.factor(SpamTestpred), reference = spamTest$type)
+print(p)
+print("classification error:")
+print(1-p$overall[1])
+```
+
+### f
+```{r}
+library(mgcv)
+fitmgcvgam4<-mgcv:::gam(type~s(make)+s(address)+s(all)+s(num3d)+s(our)+s(over)+s(remove)+s(internet)+s(order)+s(mail)+s(receive)+s(will)+s(people)+s(report)+s(addresses)+s(free)+s(business)+s(email)+s(you)+s(credit)+s(your)+s(font)+s(num000)+s(money)+s(hp)+s(george)+s(hpl)+s(num650)+s(lab)+s(labs)+s(num857)+s(data)+s(num415)+s(num85)+s(technology)+s(num1999)+s(parts)+s(pm)+s(direct)+s(cs)+s(meeting)+s(original)+s(project)+s(re)+s(edu)+s(table)+s(conference)+s(charSemicolon)+s(charRoundbracket)+s(charSquarebracket)+s(charExclamation)+s(charDollar)+s(charHash)+s(capitalAve)+s(capitalLong)+s(capitalTotal),family=binomial,data=spamTrain)
+```
+```{r}
+library(caret)
+pdata <- predict(fitmgcvgam4, newdata = spamTest, type = "response")
+SpamTestpred = rep("nonspam", dim(spamTest)[1])
+SpamTestpred[pdata>0.5]="spam"
+p<-confusionMatrix(data = as.factor(SpamTestpred), reference = spamTest$type)
+print(p)
+print("classification error:")
+print(1-p$overall[1])
+```
+### g
+For this scenario, One rule is not significantly better than other. This is seen because the accuracy/classification error seems to be very much similar. So adding spline coefficients for all the terms didnt significantly improve the model but it surely increased the computational time. One more reason maybe because of the overly complicated model with lot of features, doesnt really affect when all the terms are added for spline coefficients 

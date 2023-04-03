@@ -1,0 +1,462 @@
+---
+title: "HW4"
+author: "ASG"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE,message=FALSE,echo = TRUE)
+```
+
+## 2.4
+
+### a
+```{r}
+library(Ecdat) ; data(Tbrate); library(mgcv)
+x <- as.data.frame(Tbrate)$y
+y <- as.data.frame(Tbrate)$pi
+fitGAMcrChk <- gam(y ~ s(x,bs = "cr"))
+gam.check(fitGAMcrChk)
+fitGAMcr <- gam(y ~ s(x,bs = "cr",k=9))
+xg <- seq(min(x),max(x),length = 1001)
+fHatgGAMcr <- predict(fitGAMcr,newdata = data.frame(x = xg))
+plot(x,y,bty = "l",col = "dodgerblue",xlab = "inflation rate (percentage)",ylab = "logarithm(gross domestic product)")
+lines(xg,fHatgGAMcr,col = "darkgreen",lwd=2)
+```
+### b
+```{r}
+library(nlme);library(HRW);library(Ecdat);
+x <- as.data.frame(Tbrate)$y
+y <- as.data.frame(Tbrate)$pi
+numIntKnots <- 23
+intKnots <- quantile(unique(x),seq(0,1,length=(numIntKnots+2))[-c(1,(numIntKnots+2))])
+a <- 1.01*min(x) - 0.01*max(x)
+b <- 1.01*max(x) - 0.01*min(x)
+Z <- ZOSull(x,range.x = c(a,b),intKnots = intKnots)
+
+dummyID <- factor(rep(1,length(x)))
+fit <- lme(y ~ x,random = list(dummyID = pdIdent(~-1+Z)))
+betaHat <- fit$coef$fixed ; uHat <- unlist(fit$coef$random)
+sigsqepsHat <- fit$sigma^2
+sigsquHat <- as.numeric(VarCorr(fit)[1,1])
+ng <- 1001 ; xg <- seq(a,b,length=ng)
+Xg <- cbind(rep(1,ng),xg)
+Zg <- ZOSull(xg,range.x = c(a,b),intKnots = intKnots)
+fHatg <- as.vector(Xg%*%betaHat + Zg%*%uHat)
+plot(x,y,bty = "l",xlab = "inflation rate (percentage)",ylab = "logarithm(gross domestic product)",col = "dodgerblue",cex.lab = 1.5,cex.axis = 1.5)
+Cg <- cbind(rep(1,ng),xg,Zg)
+C <- cbind(rep(1,length(y)),x,Z)
+D <- diag(c(0,0,rep(1,ncol(Z))))
+sdg <- sqrt(sigsqepsHat)*sqrt(diag(Cg%*%solve(crossprod(C)+(sigsqepsHat/sigsquHat)*D,t(Cg))))
+CIlowg <- fHatg - 2*sdg ; CIuppg <- fHatg + 2*sdg
+polygon(c(xg,rev(xg)),c(CIlowg,rev(CIuppg)),col = "palegreen",border = FALSE)
+lines(xg,fHatg,col = "darkgreen",lwd = 2)
+points(x,y,col = "dodgerblue")
+abline(v = 1980,lty=2,col = "darkorange")
+```
+### c
+```{r}
+
+
+library(HRW)  ;  library(rstan) 
+
+library(Ecdat) ; data(Tbrate) ;
+xOrig <- as.data.frame(Tbrate)$y
+yOrig <- as.data.frame(Tbrate)$pi
+mean.x <- mean(xOrig)  ; sd.x <- sd(xOrig)
+mean.y <- mean(yOrig)  ; sd.y <- sd(yOrig)
+x <- (xOrig - mean.x)/sd.x
+y <- (yOrig - mean.y)/sd.y
+sigmaBeta <- 1e5 ; Au <- 1e5 ; Aeps <- 1e5
+
+# Obtain linear and spline basis design matrices (X and Z):
+
+X <- cbind(rep(1,length(y)),x)
+aOrig <- min(xOrig) ; bOrig <- max(xOrig)
+a <- (aOrig - mean.x)/sd.x  ;  b <- (bOrig - mean.x)/sd.x
+numIntKnots <- 25
+intKnots <-  quantile(unique(x),seq(0,1,length=numIntKnots+2)
+                      [-c(1,numIntKnots+2)])
+Z <- ZOSull(x,intKnots=intKnots,range.x=c(a,b))
+ncZ <- ncol(Z)
+
+# Specify model in Stan:
+
+npRegModel <- 
+   'data
+   {
+      int<lower=1> n;         int<lower=1> ncZ;
+      vector[n] y;            matrix[n,2] X;
+      matrix[n,ncZ] Z;        real<lower=0> sigmaBeta;
+      real<lower=0> Au;       real<lower=0> Aeps;
+   }
+   parameters 
+   {
+      vector[2] beta;          vector[ncZ] u;
+      real<lower=0> sigmaeps;  real<lower=0> sigmau;
+   }
+   model 
+   {
+      y ~ normal(X*beta + Z*u,sigmaeps);
+      u ~ normal(0,sigmau); beta ~ normal(0,sigmaBeta); 
+      sigmaeps ~ cauchy(0,Aeps); sigmau ~ cauchy(0,Au);
+   }'
+
+# Store data in a list in format required by Stan:
+
+allData <- list(n=length(x),ncZ=ncZ,y=y,X=X,Z=Z,
+                sigmaBeta=sigmaBeta,Au=Au,Aeps=Aeps)
+
+# Set flag for code compilation (needed if 
+# running script first time in current session) :
+
+compileCode <- TRUE
+
+# Compile code for model if required:
+
+if (compileCode)
+   stanCompilObj <- stan(model_code=npRegModel,data=allData,
+                         iter=1,chains=1)
+
+# Set MCMC sample size parameters:
+
+nWarm <- 1000        # Length of warm-up.
+nKept <- 2000        # Size of the kept sample.
+nThin <- 2           # Thinning factor. 
+
+# Obtain MCMC samples for each parameter using Stan:
+
+initFun <- function()
+   return(list(sigmau=1,sigmaeps=0.7,beta=rep(0,2),u=rep(0,ncZ)))
+
+stanObj <-  stan(model_code=npRegModel,data=allData,warmup=nWarm,
+                 iter=(nWarm+nKept),chains=1,thin=nThin,refresh=100,
+                 fit=stanCompilObj,init=initFun,seed=13)
+
+# Extract relevant MCMC samples:
+
+betaMCMC <- NULL
+for (j in 1:2)
+{
+   charVar <- paste("beta[",as.character(j),"]",sep="") 
+   betaMCMC <- rbind(betaMCMC,extract(stanObj,charVar,permuted=FALSE))
+}
+uMCMC <- NULL
+for (k in 1:ncZ)
+{
+   charVar <- paste("u[",as.character(k),"]",sep="") 
+   uMCMC <- rbind(uMCMC,extract(stanObj,charVar,permuted=FALSE))
+}
+sigmaepsMCMC <- as.vector(extract(stanObj,"sigmaeps",permuted=FALSE))
+sigmauMCMC <- as.vector(extract(stanObj,"sigmau",permuted=FALSE))
+
+# Obtain MCMC samples of regression curves over a fine grid:
+
+ng <- 101
+xgOrig <- seq(aOrig,bOrig,length=ng)
+xg <- (xgOrig - mean.x)/sd.x
+Xg <- cbind(rep(1,ng),xg)
+Zg <- ZOSull(xg,intKnots=intKnots,range.x=c(a,b))
+fhatMCMC <- Xg%*%betaMCMC + Zg%*%uMCMC
+
+# Convert fhatMCMC matrix to original scale:
+
+fhatMCMCOrig <- fhatMCMC*sd.y + mean.y
+fhatgOrig <- apply(fhatMCMCOrig,1,mean)
+credLower <- apply(fhatMCMCOrig,1,quantile,0.025)
+credUpper <- apply(fhatMCMCOrig,1,quantile,0.975)
+
+# Display the fit:
+
+par(mai=c(1,1.1,0.1,0.1))
+cex.labVal <- 2   ;   cex.axisVal <- 1.5
+plot(xOrig,yOrig,type="n",xlab = "inflation rate (percentage)",ylab = "logarithm(gross domestic product)",
+     bty="l",xlim=range(xgOrig),ylim=range(c(credLower,credUpper,yOrig)),
+     cex.lab=cex.labVal,cex.axis=cex.axisVal)
+polygon(c(xgOrig,rev(xgOrig)),c(credLower,rev(credUpper)),
+        col="palegreen",border=FALSE)
+lines(xgOrig,fhatgOrig,col="darkgreen",lwd=2)
+points(xOrig,yOrig,col="dodgerblue")
+abline(v=quantile(xOrig,0.25),lty=2,col="darkorange")
+abline(v=quantile(xOrig,0.50),lty=2,col="darkorange")
+abline(v=quantile(xOrig,0.75),lty=2,col="darkorange")
+
+# Obtain samples from the posterior distribution of the
+# effective degrees of freedom:
+
+X <- cbind(rep(1,length(x)),x)
+Z <- ZOSull(x,intKnots=intKnots,range.x=c(a,b))
+CTC <- crossprod(cbind(X,Z)) ; Dmat <- diag(c(0,0,rep(1,ncol(Z))))
+lambdaMCMC <- (sigmaepsMCMC/sigmauMCMC)^2
+EDFMCMC <- rep(NA,length(lambdaMCMC))
+for (i in 1:length(lambdaMCMC))
+   EDFMCMC[i] <- sum(diag(solve(CTC+lambdaMCMC[i]*Dmat,CTC)))
+
+# Convert error standard deviation MCMC sample to the orginal units:
+
+sigmaepsOrigMCMC <- sd.y*sigmaepsMCMC
+
+# Do some summaries and diagnostic checking of the MCMC:
+
+indQ1 <- length(xgOrig[xgOrig<quantile(xOrig,0.25)])
+indQ2 <- length(xgOrig[xgOrig<quantile(xOrig,0.50)])
+indQ3 <- length(xgOrig[xgOrig<quantile(xOrig,0.75)])
+fhatOrigQ1MCMC <- fhatMCMCOrig[indQ1,]
+fhatOrigQ2MCMC <- fhatMCMCOrig[indQ2,]
+fhatOrigQ3MCMC <- fhatMCMCOrig[indQ3,]
+MCMClist <- list(cbind(EDFMCMC,sigmaepsOrigMCMC,
+                 fhatOrigQ1MCMC,fhatOrigQ2MCMC,fhatOrigQ3MCMC))
+parNamesVal <- list(c("effective","degrees","of freedom"),
+                    c("error","standard","deviation"),
+                    c("reg'n func. est.","at 1st quartile","of construc. date"),
+                    c("reg'n func. est.","at 2nd quartile","of construc. date"),
+                    c("reg'n func. est.","at 3rd quartile","of construc. date"))
+
+summMCMC(MCMClist,parNames=parNamesVal)
+
+# Obtain chain summaries via the monitor() function:
+
+myMCMCarray <- array(0,dim=c(length(sigmaepsMCMC),1,5))
+myMCMCarray[,1,1] <- EDFMCMC
+myMCMCarray[,1,2] <- sigmaepsOrigMCMC
+myMCMCarray[,1,3] <- fhatOrigQ1MCMC
+myMCMCarray[,1,4] <- fhatOrigQ2MCMC
+myMCMCarray[,1,5] <- fhatOrigQ3MCMC
+monitorAnswer <- monitor(myMCMCarray,warmup=0,print=FALSE)
+dimnames(monitorAnswer)[[1]] <- c("EDF","err. st. dev.","f(Q_1)","f(Q_2)","f(Q_3)")
+print(signif(monitorAnswer,4))
+#readline("Hit Enter to continue.\n")
+
+# Obtain multiple chains MCMC samples for each parameter using Stan
+# with different initialisations of sigmaeps:
+
+sigmaepsInit <- c(0.7,0.9,1.2)
+initFun <- function(chainNum=1)
+{
+   if(chainNum==1) 
+   {
+      return(list(sigmau=1,sigmaeps=sigmaepsInit[1],beta=rep(0,2),u=rep(0,ncZ)))
+   }
+   if(chainNum==2) 
+   {
+      return(list(sigmau=1,sigmaeps=sigmaepsInit[2],beta=rep(0,2),u=rep(0,ncZ)))
+   }
+   if(chainNum==3) 
+   {
+      return(list(sigmau=1,sigmaeps=sigmaepsInit[3],beta=rep(0,2),u=rep(0,ncZ)))
+   }
+}
+
+numChains <- 3
+stanObj <-  stan(model_code=npRegModel,data=allData,
+                 warmup=nWarm,iter=(nWarm+nKept),
+                 chains=numChains,thin=nThin,
+                 refresh=100,fit=stanCompilObj,
+                 init=initFun,seed=13)
+
+sigmaepsOrigMCMC <- vector("list",numChains)
+EDFMCMC <- vector("list",numChains)
+fhatQ1OrigMCMC <- vector("list",numChains)
+fhatQ2OrigMCMC <- vector("list",numChains)
+fhatQ3OrigMCMC <- vector("list",numChains)
+
+for (ichn in 1:numChains)
+{
+   betaMCMC <- NULL
+   for (j in 1:2)
+   {
+      charVar <- paste("beta[",as.character(j),"]",sep="")
+      betaMCMC <- rbind(betaMCMC,extract(stanObj,charVar,permuted=FALSE)[,ichn,])
+   }
+   
+   uMCMC <- NULL
+   for (k in 1:ncZ)
+   {  
+      charVar <- paste("u[",as.character(k),"]",sep="") 
+      uMCMC <- rbind(uMCMC,extract(stanObj,charVar,permuted=FALSE)[,ichn,])
+   }
+
+   fhatMCMC <- Xg%*%betaMCMC + Zg%*%uMCMC
+   fhatMCMCOrig <- fhatMCMC*sd.y + mean.y
+
+   fhatQ1OrigMCMC[[ichn]] <- fhatMCMCOrig[indQ1,]
+   fhatQ2OrigMCMC[[ichn]] <- fhatMCMCOrig[indQ2,]
+   fhatQ3OrigMCMC[[ichn]] <- fhatMCMCOrig[indQ3,]
+   
+   sigmaepsMCMC <- extract(stanObj,"sigmaeps",permuted=FALSE)[,ichn,]
+   sigmauMCMC <- extract(stanObj,"sigmau",permuted=FALSE)[,ichn,]
+
+   lambdaMCMC <- (sigmaepsMCMC/sigmauMCMC)^2
+   EDFMCMC[[ichn]] <- rep(NA,length(lambdaMCMC))
+   for (i in 1:length(lambdaMCMC))
+      EDFMCMC[[ichn]][i] <- sum(diag(solve(CTC+lambdaMCMC[i]*Dmat,CTC)))
+
+   sigmaepsOrigMCMC[[ichn]] <- sd.y*sigmaepsMCMC
+}
+
+MCMClist <- list(chain1=cbind(EDFMCMC[[1]],sigmaepsOrigMCMC[[1]],
+                              fhatQ1OrigMCMC[[1]],fhatQ2OrigMCMC[[1]],
+                              fhatQ3OrigMCMC[[1]]),
+                 chain2=cbind(EDFMCMC[[2]],sigmaepsOrigMCMC[[2]],
+                              fhatQ1OrigMCMC[[2]],fhatQ2OrigMCMC[[2]],
+                              fhatQ3OrigMCMC[[2]]),
+                 chain3=cbind(EDFMCMC[[3]],sigmaepsOrigMCMC[[3]],
+                              fhatQ1OrigMCMC[[3]],fhatQ2OrigMCMC[[3]],
+                              fhatQ3OrigMCMC[[3]]))
+
+
+summMCMC(MCMClist,parNames=parNamesVal)
+
+
+```
+##2.8
+
+a
+```{r}
+n <- 800 ; theta <- 0.5 ; sigmaEps <- 0.2
+set.seed(1) ; x <- seq(0,1,length = n);
+y <- x + theta*dnorm(x,0.5,0.25) + sigmaEps*rnorm(n)
+library(mgcv) ; fitGCV <- gam(y ~ s(x,k = 27))
+fitREML <- gam(y ~ s(x,k = 27),method = "REML")
+fhatGCV <- fitted(fitGCV) ; fhatREML <- fitted(fitREML)
+fTrue <- x + theta*dnorm(x,0.5,0.25)
+ASEforGCV <- sum((fhatGCV - fTrue)^2)/n
+ASEforREML <- sum((fhatREML - fTrue)^2)/n
+print(c(ASEforGCV,ASEforREML))
+```
+b
+```{r}
+library(mgcv)
+num<-c(30 ,50, 100, 200, 400, 800, 1600, 3200)
+theta <- 0.5 ; sigmaEps <- 0.2
+ASEnum<-c()
+sample<-100
+for (j in 1:length(num)){
+  n<-num[j]
+  ASEforGCV<-c()
+  ASEforREML<-c()
+  for (i in 1:sample){
+    set.seed(i)
+    x <- seq(0,1,length = n)
+    y <- x + rnorm(200)
+    y <- x + theta*dnorm(x,0.5,0.25) + sigmaEps*rnorm(n)
+    fitGCV <- gam(y ~ s(x,k = 27))
+    fitREML <- gam(y ~ s(x,k = 27),method = "REML")
+    fhatGCV <- fitted(fitGCV) ; fhatREML <- fitted(fitREML)
+    fTrue <- x + theta*dnorm(x,0.5,0.25)
+    ASEforGCV<-c(ASEforGCV,sum((fhatGCV - fTrue)^2)/n)
+    ASEforREML<-c(ASEforREML,sum((fhatREML - fTrue)^2)/n)
+  }
+  ASEnum<-rbind(c(sum(ASEforGCV)/sample,sum(ASEforREML)/sample,n,theta,sigmaEps),ASEnum)
+}
+print(ASEnum)
+```
+c
+```{r}
+thetas<-seq(0,1,by=0.1)
+sigmaEps <- 0.2 ; n<-800
+ASEtheta<-c()
+sample<-100
+for (j in 1:length(thetas)){
+  theta<-thetas[j]
+  ASEforGCV<-c()
+  ASEforREML<-c()
+  for (i in 1:sample){
+    set.seed(i)
+    x <- seq(0,1,length = n)
+    y <- x + rnorm(200)
+    y <- x + theta*dnorm(x,0.5,0.25) + sigmaEps*rnorm(n)
+    fitGCV <- gam(y ~ s(x,k = 27))
+    fitREML <- gam(y ~ s(x,k = 27),method = "REML")
+    fhatGCV <- fitted(fitGCV) ; fhatREML <- fitted(fitREML)
+    fTrue <- x + theta*dnorm(x,0.5,0.25)
+    ASEforGCV<-c(ASEforGCV,sum((fhatGCV - fTrue)^2)/n)
+    ASEforREML<-c(ASEforREML,sum((fhatREML - fTrue)^2)/n)
+  }
+  ASEtheta<-rbind(c(sum(ASEforGCV)/sample,sum(ASEforREML)/sample,n,theta,sigmaEps),ASEtheta)
+}
+```
+d
+```{r}
+theta<-0.5; n<-800
+sigmaEpsl <- seq(0.1,1,by=0.1) 
+ASEsigma<-c()
+sample<-100
+for (j in 1:length(sigmaEpsl)){
+  sigmaEps<-sigmaEpsl[j]
+  ASEforGCV<-c()
+  ASEforREML<-c()
+  for (i in 1:sample){
+    set.seed(i)
+    x <- seq(0,1,length = n)
+    y <- x + rnorm(200)
+    y <- x + theta*dnorm(x,0.5,0.25) + sigmaEps*rnorm(n)
+    fitGCV <- gam(y ~ s(x,k = 27))
+    fitREML <- gam(y ~ s(x,k = 27),method = "REML")
+    fhatGCV <- fitted(fitGCV) ; fhatREML <- fitted(fitREML)
+    fTrue <- x + theta*dnorm(x,0.5,0.25)
+    ASEforGCV<-c(ASEforGCV,sum((fhatGCV - fTrue)^2)/n)
+    ASEforREML<-c(ASEforREML,sum((fhatREML - fTrue)^2)/n)
+  }
+   ASEsigma<-rbind(c(mean(ASEforGCV),mean(ASEforREML),n,theta,sigmaEps),ASEsigma)
+}
+```
+e
+```{r}
+library(summarytools)
+print("X1=ASEforGCV,X2=ASEforREML,X3=num,X4=theta,X4=sigmaeps")
+ASEnum<-data.frame(ASEnum)
+plot(ASEnum$X3,ASEnum$X1,col="blue")
+points(ASEnum$X3,ASEnum$X2,col="red")
+lines(ASEnum$X3,ASEnum$X1,col="blue")
+lines(ASEnum$X3,ASEnum$X2,col="red")
+legend('topright',legend=c("ASEforGCV","ASEforREML"),col=c("blue","red"),lty=1, cex=0.6)
+dfSummary(ASEnum)
+
+ASEtheta<-data.frame(ASEtheta)
+plot(ASEtheta$X4,ASEtheta$X1,col="blue")
+points(ASEtheta$X4,ASEtheta$X2,col="red")
+lines(ASEtheta$X4,ASEtheta$X1,col="blue")
+lines(ASEtheta$X4,ASEtheta$X2,col="red")
+legend('bottomright',legend=c("ASEforGCV","ASEforREML"),col=c("blue","red"),lty=1, cex=0.6)
+dfSummary(ASEtheta)
+
+ASEsigma<-data.frame(ASEsigma)
+plot(ASEsigma$X5,ASEsigma$X1,col="blue")
+points(ASEsigma$X5,ASEsigma$X2,col="red")
+lines(ASEsigma$X5,ASEsigma$X1,col="blue")
+lines(ASEsigma$X5,ASEsigma$X2,col="red")
+legend('bottomright',legend=c("ASEforGCV","ASEforREML"),col=c("blue","red"),lty=1, cex=0.6)
+dfSummary(ASEsigma)
+```
+As we increase the number of samples, the mean square error decreases exponentially for both the model based ASE. They both follow a similar trend. although for lower sample size GCV shows a higher ASE loss than REML based fit.
+
+When we wary theta , we can draw the following observation. The GCV based ASE gives a higher value than REML based ASE for all thetas. Moreover the generale trend is that as theta increases so does the ASE for both the model fits. 
+
+When we vary sigma we can draw the following conclusions:Again the GCV based ASE provides a higher value than REML based for all sigma. THis means that REML based are better at modelling. We can also see that the ASE increases parabolically as the sigma increases.
+
+
+## 3
+
+### a
+GCV smoothness can often suffer from underfitting issues compared to other. Cannot account easily for missing data and heteroscedasticity.
+GCV is computationally faster
+
+
+REML or mixed model based smoothing are computationally slower. Cannot account easily for missing data and heteroscedasticity.
+They provide much more robustness in smoothing for GAM. As seen above the ASE is also comparatively lower for REML
+
+bayesian based model can be very complicated to code and implement. Speaking from experience
+Bayesian models can account for missing data
+
+### b
+
+for Bayesian penalized splines , a non linear time series data which has groupings and also some missing data. They would be the best case scenario to model such a data. This can be best used when there are gaps in data collection in certain years due to varied reasons.
+
+Mixed model based penalized spline would be better used for data which has grouping in it. For example a time series data of some kind grouped according to a certain geographical area. 
+
+GCV based penalized splines would work best when we have abundance of data and we dont have much risk to overfitting. Datasets with unpenalized parametric terms like categorical predictors would be best suited for this approach.
+
+
+Normal GCV penalized spline 

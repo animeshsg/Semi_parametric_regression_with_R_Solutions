@@ -1,0 +1,162 @@
+---
+title: "HW6"
+author: "ASG"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## 3.1
+
+### a
+```{r}
+library(AER) ; data(HousePrices) ; library(mgcv)
+fitGaussAM <- gam(price ~ s(lotsize,k = 27) + bedrooms + factor(bathrooms) + factor(stories) + factor(driveway) + factor(recreation) + factor(fullbase) + factor(gasheat) + factor(aircon) + garage + factor(prefer), data = HousePrices,family = gaussian)
+```
+
+### b
+```{r}
+gam.check(fitGaussAM)
+```
+
+### c
+```{r}
+fitGammaAM <- gam(price ~ s(lotsize,k = 27) + bedrooms + factor(bathrooms) + factor(stories) + factor(driveway) + factor(recreation) + factor(fullbase) + factor(gasheat) + factor(aircon) + garage + factor(prefer), data = HousePrices,family = Gamma)
+
+```
+
+### d
+```{r}
+gam.check(fitGammaAM)
+```
+### e
+```{r}
+summary(fitGammaAM)
+summary(fitGaussAM)
+
+```
+
+```{r}
+plot(fitGaussAM,shade = TRUE,shade.col = "palegreen",
+     select = 1,xlim = range(HousePrices$lotsize),ylab = "effect on logit(probab. of denial)",
+     xlab = "lotsize",
+     main = "Gaussian link scale",rug = FALSE)
+rug(HousePrices$lotsize,col = "dodgerblue",quiet = TRUE)
+
+plot(fitGammaAM,shade = TRUE,shade.col = "palegreen",
+     select = 1,xlim = range(HousePrices$lotsize),ylab = "effect on logit(probab. of denial)",
+     xlab = "lotsize",
+     main = "Gamma link scale",rug = FALSE)
+rug(HousePrices$lotsize,col = "dodgerblue",quiet = TRUE)
+```
+
+```{r}
+modalValue <- function(x)
+   return(unique(x)[which.max(tabulate(match(x,unique(x))))])
+
+# Set grids for `dir' and `lvg':
+
+ng <- 401 ; dirg <- seq(min(HousePrices$lotsize),max(HousePrices$lotsize),length = ng) ; lvrg <- seq(0,1,length = ng)
+
+# Obtain and plot slice of the probability surface
+# in the `dir' direction corresponding to the modal
+# values of categorical predictors and the mean of 
+# other continuous predictors:
+
+
+
+newdataDF <- data.frame(lotsize = dirg,
+                        bedrooms=mean(HousePrices$bedrooms),
+                        bathrooms=modalValue(HousePrices$bathrooms),
+                        stories=modalValue(HousePrices$stories),
+                        driveway=modalValue(HousePrices$driveway),
+                        recreation=modalValue(HousePrices$recreation),
+                        fullbase=modalValue(HousePrices$fullbase),
+                        gasheat=modalValue(HousePrices$gasheat),
+                        aircon=modalValue(HousePrices$aircon),
+                        garage=mean(HousePrices$garage),
+                        prefer=modalValue(HousePrices$prefer)
+                        )
+
+predObjdir <- predict(fitGaussAM,newdata = newdataDF,
+                      type = "response",se.fit = TRUE)
+etahatdirg <- predObjdir$fit
+lowdirg <- etahatdirg - qnorm(0.975)*predObjdir$se.fit
+uppdirg <- etahatdirg + qnorm(0.975)*predObjdir$se.fit
+#lowdirg[lowdirg<0] <- 0 ; lowdirg[lowdirg>0.5] <- 0.5
+
+plot(0,type = "n",ylim = range(HousePrices$price),xlim = range(HousePrices$lotsize),xlab  =  "debt payments to income ratio",
+     ylab  =  "probability of denial",main  =  "response scale")
+polygon(c(dirg,rev(dirg)),c(lowdirg,rev(uppdirg)),col = "palegreen",border = FALSE)
+lines(dirg,etahatdirg,col = "darkgreen",lwd = 2)
+
+rug(HousePrices$lotsize,col = "dodgerblue",quiet = TRUE)
+
+predObjdir <- predict(fitGammaAM,newdata = newdataDF,
+                      type = "response",se.fit = TRUE)
+etahatdirg <- predObjdir$fit
+lowdirg <- etahatdirg - qnorm(0.975)*predObjdir$se.fit
+uppdirg <- etahatdirg + qnorm(0.975)*predObjdir$se.fit
+#lowdirg[lowdirg<0] <- 0 ; lowdirg[lowdirg>0.5] <- 0.5
+
+plot(0,type = "n",ylim = range(HousePrices$price),xlim = range(HousePrices$lotsize),xlab  =  "debt payments to income ratio",
+     ylab  =  "probability of denial",main  =  "response scale")
+polygon(c(dirg,rev(dirg)),c(lowdirg,rev(uppdirg)),col = "palegreen",border = FALSE)
+lines(dirg,etahatdirg,col = "darkgreen",lwd = 2)
+
+rug(HousePrices$lotsize,col = "dodgerblue",quiet = TRUE)
+
+```
+According to the summaries and the residual plots checked earlier, It can be seen that the Gamma model fit slightly outperforms the gaussian fit. It has a higher Rsquared value and a little higher deviance explained value. 
+
+### f
+```{r}
+
+newdataDF <- data.frame(lotsize = 5000,
+                        bedrooms=3,
+                        bathrooms=2,
+                        stories=2,
+                        driveway="yes",
+                        recreation="no",
+                        fullbase="yes",
+                        gasheat="no",
+                        aircon="no",
+                        garage=2,
+                        prefer="no"
+                        )
+
+predObjdir <- predict(fitGaussAM,newdata = newdataDF,
+                      type = "response",se.fit = TRUE)
+print(predObjdir)
+```
+
+### g
+```{r}
+etahatdirg <- predObjdir$fit
+lowdirg <- etahatdirg - qnorm(0.975)*predObjdir$se.fit
+uppdirg <- etahatdirg + qnorm(0.975)*predObjdir$se.fit
+print(lowdirg)
+print(uppdirg)
+```
+
+## 2
+The IID assumption i.e Independence of Independent variable assumption is not mentioned in the textbook which is one of the assumption that we usually use in OLS regression. Especially for the GLM the iid assumption is relaxed for the predictors but still the residuals needs to be iid otherwise they will provide biased estimates. 
+
+## 3
+
+### a
+Scaled Deviance of a model is essentially a measure of the "goodness of fit" of the data. It is often measured by comparing the deviance or the fit of the target model with that of the saturated model. The value of scaled deviance is equivalent to the $-2*log(\frac{L(\theta_{MLE}/Y)}{L(\theta_{S}/y)})$
+
+### b
+As seen from the above equation , when we subtract two scaled deviance of two different model, due to the logarithmic rules, the likelihood ration inside the two logs get multipled to the inverse of the other model such as :
+
+$D0-D1=-2*log(\frac{L(\theta_{10}/Y)}{L(\theta_{S}/y)}*\frac{L(\theta_{S}/y}{\theta_{}/Y}) = \lambda$
+
+Thus the likelihood of saturated model gets cancelled and we are left with the log likelihood ratio test statistic lambda.
+
+
+

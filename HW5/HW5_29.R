@@ -145,8 +145,6 @@ points(xOrig[treatIndic == 0],yOrig[treatIndic == 0],col = "dodgerblue")
 
 points(xOrig[treatIndic == 1],yOrig[treatIndic == 1],col = "deeppink")
 
-fhatCntrlMCMC <- Xg%*%betaMCMC[c(1,2),] + Zg%*%uControlMCMC
-
 fhatTreatMCMC <- Xg%*%(betaMCMC[c(1,2),]+ betaMCMC[c(3,4),]) + Zg%*%uTreatmtMCMC
 
 fCntrlg <- apply(fhatCntrlMCMC,1,mean)
