@@ -1,0 +1,156 @@
+---
+title: "HW11"
+author: "ASG"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 5.4
+
+### a
+```{r}
+library(gss) ; data(LakeAcidity)
+x1 <- LakeAcidity$lon
+x2 <- LakeAcidity$lat
+chullInds <- chull(x1,x2)
+chullInds <- c(chullInds,chullInds[1])
+LakeAcidityConvexHullBdry <- cbind(x1,x2)[chullInds,]
+plot(x1,x2,bty="l",xlab = "longitude",ylab = "latitude",col = "dodgerblue")
+lines(LakeAcidityConvexHullBdry,col = "navy")
+```
+### b
+```{r}
+#colnames(LakeAcidity)
+library(mgcv)
+fittp<-gam(log(cal)~s(x1,x2,bs='tp',k=60),data=LakeAcidity,method='REML',)
+summary(fittp)
+fitts<-gam(log(cal)~te(x1,x2),data=LakeAcidity,method='REML')
+summary(fitts)
+```
+### c
+```{r}
+library(fields)
+library(HRW)
+ngrid <- 201
+lonGrid <- seq(min(x1),
+           max(x1),length = ngrid)
+latGrid <- seq(min(x2),max(x2),
+               length = ngrid)
+lonlatMesh <- expand.grid(lonGrid,latGrid)
+names(lonlatMesh) <- c("longitude","latitude")
+outInds <- (1:ngrid^2)[pointsInPoly(lonlatMesh,
+                       LakeAcidityConvexHullBdry)==FALSE]
+
+
+# Obtain the fitted surface over the mesh:
+
+fitMeshtp <- matrix(predict(fittp,
+                  newdata = lonlatMesh),ngrid,ngrid)
+
+fitMeshts <- matrix(predict(fitts,
+                  newdata = lonlatMesh),ngrid,ngrid)
+
+fitMeshtp[outInds] <- NA
+fitMeshts[outInds] <- NA
+
+par(mai = c(1.02,0.95,0.1,1.2)) 
+library(fields)
+image.plot(lonGrid,latGrid,fitMeshtp,col = terrain.colors(1000),
+      xlab = "degrees longitude",ylab = "degrees latitude",
+      legend.args = list(text = "calcium concentration",
+      cex = 1,adj = 0.8),axis.args = list(cex.axis = 1),bty = "l",
+      ylim=c(32,38),
+      xlim=c(-86,-79),
+      cex.lab = 1,cex.axis = 1)
+lines(LakeAcidityConvexHullBdry,col = "navy")
+points(x1,x2,
+       col = "darkblue",cex = 0.5)
+
+par(mai = c(1.02,0.95,0.1,1.2))
+image.plot(lonGrid,latGrid,fitMeshts,col = terrain.colors(1000),
+      xlab = "degrees longitude",ylab = "degrees latitude",
+      legend.args = list(text = "calcium concentration",
+      cex = 1,adj = 0.8),axis.args = list(cex.axis = 1),bty = "l",
+      cex.lab = 1,cex.axis =1)
+lines(LakeAcidityConvexHullBdry,col = "navy")
+points(x1,x2,
+       col = "darkblue",cex = 0.5)
+
+plot(fittp,scheme = 2,hcolors = terrain.colors(1000),main="",bty="l", cex.lab = 2,cex.axis = 2,xlab = "degrees longitude",ylab = "degrees latitude")
+lines(LakeAcidityConvexHullBdry,col = "navy")
+plot(fitts,scheme = 2,hcolors = terrain.colors(1000),main="",bty="l", cex.lab = 2,cex.axis = 2,xlab = "degrees longitude",ylab = "degrees latitude")
+lines(LakeAcidityConvexHullBdry,col = "navy")
+```
+
+As from the geo plots , the highest mean concentration of log calcium concentrate is at the northern shore of the lake. The contours at that location is reddish hue which corresponds to the highest contour line of calcium concentrate i.e 1.4/2
+
+### d
+the two bivariate penalized spline approach is using thin plate splines and using tensor product. If we look at the graph plot from the previous questions, ther tensor product fit is much more smoother/complicated as it generates more contours in the same area than thin plate splines. Although the highest level of log conc of calcium differs in both the fit with 2 and 1.4 respectively. From the summary we can see that the thin splate explains more variability in data with r square as 0.59 compared to the r square of 0.38 of tensor product
+
+### e
+```{r}
+fitgeo<-gam(ph ~ s(x1,x2,bs='tp',k=60)+s(log(cal),k=15),data=LakeAcidity,method='REML')
+gam.check(fitgeo)
+summary(fitgeo)
+plot(fitgeo,scheme = 2,hcolors = terrain.colors(1000),main="",bty="l", cex.lab = 2,cex.axis = 2,xlab = "degrees longitude",ylab = "degrees latitude")
+lines(LakeAcidityConvexHullBdry,col = "navy")
+```
+### f
+As from the summary of geoadditive fit, we can see that the log calcium concentration has edf of 1 in this fit , hence we can only assume that it has a linear and simple relationship with the ph of the lake. ALso since the F-test is significant , thus the log calcium is much more important. we can say that the as log calcium concentrtion increases so does the PH.
+### g
+THe edf of the location from lat and long gives us as 8.9 which gives us a complicated relationship between the lat/long with the mean ph of the lake. Even this bivariate term is significant in this geoadditive model but the relationship is much more complicated
+
+### 5.8
+### a
+```{r}
+library(lattice) ; data(ethanol) ; pairs(ethanol)
+colnames(ethanol)
+```
+### b
+```{r}
+fitethanol<-gam(NOx~s(C,k=3)+s(E,by=C,k=3),data=ethanol,method='REML')
+gam.check(fitethanol)
+summary(fitethanol)
+```
+### c
+```{r}
+fitethanolbi<-gam(NOx~s(C,E,bs='tp',k=5),data=ethanol,method='REML')
+gam.check(fitethanolbi)
+summary(fitethanolbi)
+```
+### d
+```{r}
+anova(fitethanol,fitethanolbi)
+```
+
+### 5.10
+### a
+```{r}
+library(refund) ; data(DTI2) ; ccaLongitDF <- NULL
+for (i in 1:340) ccaLongitDF <- rbind(ccaLongitDF,cbind(rep(i,93),1:93,DTI2$cca[i,]))
+ccaLongitDF <- as.data.frame(ccaLongitDF)
+names(ccaLongitDF) <- c("idnum","pixel", "diffusion")
+library(lattice)
+ccaLongitVis <- xyplot(diffusion ~ pixel|idnum,
+  group = idnum,data = ccaLongitDF,
+  strip = FALSE,layout = c(20,17),
+  as.table = TRUE,
+  panel = function(x,y,subscripts,groups)
+    {
+                  panel.grid()
+                  panel.superpose(x,y,subscripts,groups,
+                  col = "darkgreen",type = "l")
+    })
+print(ccaLongitVis)
+```
+### b
+```{r}
+sampCovMat <- var(DTI2$cca,na.rm = TRUE)
+library(fields)
+image.plot(1:93,1:93,sampCovMat,col = terrain.colors(1000),xlab = "pixel number",ylab = "pixel number",legend.args = list(text="sample cov. func."))
+```
+

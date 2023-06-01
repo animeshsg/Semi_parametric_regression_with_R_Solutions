@@ -1,0 +1,136 @@
+---
+title: "HW10"
+author: "ASG"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, cache=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 5
+
+### a
+```{r}
+library(HRW) ; data(scallop)
+x1 <- scallop$longitude ; x2 <- scallop$latitude
+y <- asinh(scallop$totalCatch)
+```
+
+### b
+```{r}
+library(lattice) ; cloud(y ~ x1 + x2)
+```
+### c
+```{r}
+library(mgcv) ; fit <- gam(y ~ s(x1,x2))
+summary(fit) ; gam.check(fit)
+```
+### d
+```{r}
+par(mfrow = c(2,2)) ; plot(fit) ; plot(fit,scheme = 1)
+plot(fit,scheme = 2) ; plot(fit,scheme = 3)
+```
+### e
+```{r}
+scallopBdry<-read.table(file="scallopBdry.txt")
+print(scallopBdry)
+write.table(scallopBdry,"scallopBdry.txt",row.names = FALSE,col.names = FALSE)
+scallopBdry<-read.table(file="scallopBdry.txt")
+```
+### f
+```{r}
+ngrid <- 101
+x1grid <- seq(min(x1),max(x1),length = ngrid)
+x2grid <- seq(min(x2),max(x2),length = ngrid)
+x1x2mesh <- expand.grid(x1grid,x2grid)
+names(x1x2mesh) <- c("x1","x2")
+fitmesh <- matrix(predict(fit,newdata = x1x2mesh),ngrid,ngrid)
+outInds <- (1:ngrid^2)[pointsInPoly(x1x2mesh,scallopBdry)== FALSE]
+fitmesh[outInds] <- NA
+xlimVal <- c(1.1*min(x1) - 0.1*max(x1),1.1*max(x1) - 0.1*min(x1))
+ylimVal <- c(1.1*min(x2) - 0.1*max(x2),1.1*max(x2) - 0.1*min(x2))
+contour(x1grid,x2grid,fitmesh,xlab = "degrees longitude",ylab = "degrees latitude",xlim = xlimVal,ylim = ylimVal,bty = "l")
+lines(scallopBdry,col = "navy")
+points(x1,x2,col = "dodgerblue",cex = 0.5)
+
+```
+### g
+```{r}
+image(x1grid,x2grid,fitmesh,xlab = "degrees longitude",ylab = "degrees latitude",xlim = xlimVal,ylim = ylimVal,bty = "l")
+lines(scallopBdry,col = "navy")
+points(x1,x2,col="dodgerblue",cex=0.5)
+```
+### h
+```{r}
+image(x1grid,x2grid,fitmesh,col = terrain.colors(1000),xlab = "degrees longitude",ylab = "degrees latitude",xlim = xlimVal,ylim = ylimVal,bty = "l")
+lines(scallopBdry,col = "navy")
+points(x1,x2,col="dodgerblue",cex=0.5)
+```
+### 1
+```{r}
+library(fields)
+image.plot(x1grid,x2grid,fitmesh,col = terrain.colors(1000),xlab = "degrees longitude",ylab = "degrees latitude",legend.args = list(text = "arcsinh(total catch)"),xlim = xlimVal,ylim = ylimVal,bty = "l")
+lines(scallopBdry,col = "navy")
+points(x1,x2,col="dodgerblue",cex=0.5)
+```
+### j
+```{r}
+persp(x1grid,x2grid,fitmesh,col = "green3",theta = 15,
+phi = 45,xlab = "degrees longitude",ylab = "degrees latitude",zlab = "arcsinh(total catch)")
+```
+## 5.2
+
+### a
+```{r}
+library(HRW) ; data(SydneyRealEstate)
+x1 <- SydneyRealEstate$longitude
+x2 <- SydneyRealEstate$latitude
+y <- SydneyRealEstate$logSalePrice
+```
+### b
+```{r}
+plot(x1,x2,col = "dodgerblue",cex = 0.1)
+
+```
+### c
+```{r}
+plot(x1,x2,col = "dodgerblue",cex = 0.1)
+data(SydneyRealEstateBdry)
+print(SydneyRealEstateBdry)
+lines(SydneyRealEstateBdry,col = "navy",lwd = 2)
+```
+
+### d
+```{r}
+library(mgcv) ; fit <- gam(y ~ s(x1,x2,k = 150))
+summary(fit)
+```
+
+### e
+```{r}
+plot(fit,scheme = 2,hcolors = terrain.colors(1000),xlab = "longitude",ylab = "latitude")
+```
+
+### f
+```{r}
+ngrid <- 201
+x1grid <- seq(min(x1),max(x1),length = ngrid)
+x2grid <- seq(min(x2),max(x2),length = ngrid)
+x1x2mesh <- expand.grid(x1grid,x2grid)
+names(x1x2mesh) <- c("x1","x2")
+fitmesh <- predict(fit,newdata = x1x2mesh)
+outInds <- (1:ngrid^2)[pointsInPoly(x1x2mesh,SydneyRealEstateBdry) == FALSE]
+fitmesh[outInds] <- NA
+fitmesh <- matrix(fitmesh,ngrid,ngrid)
+image(x1grid,x2grid,fitmesh,col = terrain.colors(1000),xlab = "longitude",ylab = "latitude",bty = "l")
+lines(SydneyRealEstateBdry,col = "navy",lwd = 2)
+```
+
+### 3
+
+The convex hull of the spatial data does not always lead to a good region for
+switching on pixels in image plots. There are instances when the data is far from convex and thus it is not a good pixel switch on boundary. Hence plotting boundaries are integral in plotting 2d smoothing function.
+
+
